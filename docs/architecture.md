@@ -15,8 +15,10 @@ UDP transport and Runtime are externally owned, must outlive ArtNetNode, and are
 not deleted by the library. Do not copy an active node or share one socket between
 nodes. Calls and callbacks run cooperatively on one application context; instances
 are not internally synchronized. Call read() frequently, even with no DMX traffic,
-to service delayed management responses. Callbacks must not re-enter read() or send
-through the same node: its packet buffer is shared between RX and ArtDmx TX.
+to service delayed management responses. Callbacks must not re-enter read() or
+ArtDmx write(): its packet buffer is shared between RX and ArtDmx TX. Management
+transmissions such as sendArtRdm()/sendArtTodData() use separate buffers and may
+be made from callbacks after the receive datagram has been consumed.
 Consume/copy callback data before returning. After returning, it is borrowed and
 may be overwritten by the next read or transmit call.
 
