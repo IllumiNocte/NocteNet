@@ -1,0 +1,8 @@
+build*/
+.pio/
+__pycache__/
+*.obj
+*.exe
+*.pdb
+*.ilk
+*.ino.cpp

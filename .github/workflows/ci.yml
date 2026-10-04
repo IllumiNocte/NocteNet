@@ -1,0 +1,65 @@
+name: CI
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  native:
+    name: Portable C++ (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+      - run: cmake --build build --config Debug --parallel
+      - run: ctest --test-dir build -C Debug --output-on-failure
+  sanitizers:
+    name: Parser ASan / UBSan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DNOCTENET_SANITIZERS=ON
+      - run: cmake --build build --parallel
+      - run: ctest --test-dir build --output-on-failure
+  arduino:
+    name: Arduino examples (${{ matrix.arch }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: ESP8266
+            url: https://arduino.esp8266.com/stable/package_esp8266com_index.json
+            core: esp8266:esp8266@3.1.2
+            fqbn: esp8266:esp8266:generic
+          - arch: ESP32-S3
+            url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
+            core: esp32:esp32@3.3.12
+            fqbn: esp32:esp32:esp32s3
+    steps:
+      - uses: actions/checkout@v7
+      - uses: arduino/setup-arduino-cli@v2
+        with:
+          version: '1.x'
+      - name: Install core and Ethernet example dependency
+        run: |
+          arduino-cli config init
+          arduino-cli config add board_manager.additional_urls '${{ matrix.url }}'
+          arduino-cli core update-index
+          arduino-cli core install '${{ matrix.core }}'
+          arduino-cli lib install 'Ethernet@2.0.2'
+      - name: Compile all examples
+        shell: bash
+        run: |
+          set -euo pipefail
+          for sketch in examples/*; do
+            arduino-cli compile --fqbn '${{ matrix.fqbn }}' --library "$GITHUB_WORKSPACE" --warnings all "$sketch"
+          done

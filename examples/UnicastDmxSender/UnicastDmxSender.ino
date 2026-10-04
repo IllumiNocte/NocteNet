@@ -1,0 +1,106 @@
+/*
+ * NocteNet - UnicastDmxSender
+ *
+ * Connects an ESP8266 or ESP32 to Wi-Fi and sends a 16-slot ArtDmx frame every
+ * 25 ms (40 FPS) to one fixed destination. A single full-value slot moves
+ * through the frame, producing a simple channel chase.
+ *
+ * Data flow:
+ *   generated chase -> ArtNetNode -> WiFiUDP -> TARGET_IP -> Art-Net receiver
+ *
+ * Before uploading:
+ *   1. Set WIFI_SSID and WIFI_PASSWORD.
+ *   2. Change TARGET_IP to the receiving node's address.
+ *   3. Match PORT_ADDRESS at sender and receiver. Wire-level Port-Address 0 is
+ *      often displayed as Universe 1 by controller software.
+ *
+ * This is intentionally a unicast example. Discovery-based subscriber lists,
+ * merging, source timeouts, and physical DMX input are application features
+ * demonstrated by the full uNode firmware rather than this minimal sketch.
+ */
+
+#include <Arduino.h>
+
+#if defined(ARDUINO_ARCH_ESP8266)
+#include <ESP8266WiFi.h>
+#include <WiFiUdp.h>
+#elif defined(ARDUINO_ARCH_ESP32)
+#include <WiFi.h>
+#include <WiFiUdp.h>
+#else
+#error "This example requires an ESP8266 or ESP32 Wi-Fi board"
+#endif
+
+#include <NocteNetArduino.h>
+using nocte::net::fromArduino;
+using nocte::net::toArduino;
+
+static const char* WIFI_SSID = "your-ssid";
+static const char* WIFI_PASSWORD = "your-password";
+static const IPAddress TARGET_IP(2, 0, 0, 1);
+static const uint16_t PORT_ADDRESS = 0;
+static const uint16_t SLOT_COUNT = 16;
+static const uint32_t FRAME_INTERVAL_MS = 25;
+
+// The protocol class accepts any object implementing Arduino's UDP interface.
+WiFiUDP udp;
+nocte::net::ArduinoUdpTransport transport(udp);
+nocte::net::ArduinoRuntime runtime;
+ArtNetNode artnet(transport, runtime);
+uint32_t nextFrameMs = 0;
+uint8_t chasePosition = 0;
+
+static ArtNetNetworkConfig currentNetworkConfig() {
+  ArtNetNetworkConfig network = {};
+  network.ip = fromArduino(WiFi.localIP());
+  network.subnet = fromArduino(WiFi.subnetMask());
+  network.gateway = fromArduino(WiFi.gatewayIP());
+  WiFi.macAddress(network.mac);
+  network.dhcp = true;
+  return network;
+}
+
+void setup() {
+  Serial.begin(115200);
+
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(250);
+  }
+
+  // Advertise the sender as a node with one physical-style DMX input port.
+  artnet.setShortName("WiFi Sender");
+  artnet.setLongName("NocteNet Unicast DMX Sender Example");
+  artnet.setDirection(false);  // This node behaves like a physical DMX input.
+  artnet.setStartingUniverse(PORT_ADDRESS);
+  artnet.setUniverse(PORT_ADDRESS); // Destination Port-Address in ArtDmx.
+  artnet.setPhysical(0);            // First/only physical input port.
+  artnet.setLength(SLOT_COUNT);     // ArtDmx payload length; must be even.
+
+  if (artnet.begin(currentNetworkConfig()) != 0) {
+    Serial.println("Unable to bind Art-Net UDP port");
+  }
+}
+
+void loop() {
+  artnet.read();  // Keep discovery and management replies responsive.
+
+  const uint32_t now = millis();
+  if ((int32_t)(now - nextFrameMs) < 0) {
+    return;
+  }
+
+  nextFrameMs = now + FRAME_INTERVAL_MS;
+
+  // setByte() uses a zero-based payload index: index 0 represents DMX slot 1.
+  for (uint16_t slot = 0; slot < SLOT_COUNT; slot++) {
+    artnet.setByte(slot, slot == chasePosition ? 255 : 0);
+  }
+
+  // Keep the advertised input-data flag current and transmit one complete
+  // ArtDmx datagram. write() returns zero if UDP transmission failed.
+  artnet.setPortInputActive(true);
+  artnet.write(fromArduino(TARGET_IP));
+  chasePosition = (chasePosition + 1) % SLOT_COUNT;
+}

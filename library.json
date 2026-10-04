@@ -1,0 +1,11 @@
+{
+  "name": "NocteNet",
+  "version": "0.1.0",
+  "description": "Portable Art-Net and ArtRdm C++ protocol core with Arduino UDP adapters.",
+  "keywords": ["artnet", "rdm", "dmx", "udp", "lighting"],
+  "repository": {"type": "git", "url": "https://github.com/IllumiNocte/NocteNet.git"},
+  "authors": [{"name": "IllumiNocte"}, {"name": "Charles Yarnold"}, {"name": "Stephan Ruloff"}],
+  "license": "GPL-2.0-only",
+  "frameworks": "*",
+  "platforms": "*"
+}
