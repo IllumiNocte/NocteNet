@@ -6,13 +6,14 @@
 ![C++11](https://img.shields.io/badge/core-C%2B%2B11-blue)
 ![License](https://img.shields.io/badge/license-GPL--2.0--only-blue)
 
-NocteNet is IllumiNocte's portable Art-Net / ArtRdm library, extracted from the
-maintained uNodeArtNet implementation. The protocol core has no Arduino or ESP
+NocteNet is IllumiNocte's portable Art-Net / ArtRdm library with an optional sACN
+data module, extracted from the maintained uNode implementations. The protocol core has no Arduino or ESP
 header dependencies. An application supplies its UDP transport, clock, and random
 source. Arduino adapters work with WiFiUDP or EthernetUDP without changing the
 protocol implementation.
 
-> Initial development version. sACN is not included yet. USB Ethernet is a planned
+> Initial development version. sACN covers the existing zero-start-code data subset,
+> not the whole E1.31 specification. USB Ethernet is a planned
 > application/platform integration, not an implemented USB driver in this library.
 > Host tests and compile CI do not constitute Art-Net certification or live network HIL.
 
@@ -25,9 +26,11 @@ protocol implementation.
 - ArtRdm receive/transmit with the DMX start code omitted on the network.
 - Advertised RDM/discovery status and diagnostic counters for rejected packets.
 - Fixed packet buffers and bounded cooperative receive/discard work.
+- Optional sACN packet encoding/decoding, one-universe receive/transmit, explicit
+  multicast membership/egress adaptation, and a separate two-source selection policy.
 
 Physical DMX/RDM is provided by the application (for example NocteDMX). RDM discovery,
-queues, controller ownership, merging, failsafe, GUI, and licenses are not secretly
+queues, controller ownership, HTP/LTP merging, failsafe, GUI, and licenses are not secretly
 implemented by NocteNet.
 
 ## Arduino quick start
@@ -74,10 +77,30 @@ Linux sanitizer build: add `-DNOCTENET_SANITIZERS=ON` when configuring.
 CI tests Linux/Windows cores, ASan/UBSan, and all Arduino examples on ESP8266/S3.
 See [architecture and contracts](docs/architecture.md) and [contribution guidelines](CONTRIBUTING.md).
 
+## Optional sACN data module
+
+Include `NocteNetSacn.h`. The standalone `encodeSacnData()` / `decodeSacnData()`
+codec needs no socket or clock. `SacnNode` accepts an application-owned
+`SacnTransport` with explicit interface-aware multicast join, leave and send
+operations; no generic Arduino UDP adapter can silently promise those capabilities.
+Each `read()` handles one datagram or one 256-byte discard chunk. A callback receives
+borrowed metadata/slots; the application decides whether to use or reject them.
+
+`SacnSourceSelector` is an optional, separately usable policy copied from uNode:
+two sources, sequence tracking, highest priority, latest timestamp on equal
+priority, 2.5-second source expiry. It is **not an HTP merge**. The codec and selector
+retain known initial limitations, documented in [sACN contracts and gaps](docs/sacn.md).
+Do not infer E1.31 certification from parser tests.
+
+See the [protocol-only example](examples/SacnDataCodec). CMake can omit all sACN
+implementation objects with `-DNOCTENET_SACN=OFF`; Arduino/PlatformIO uses ordinary
+dead-code elimination when no sACN API is referenced. Art-Net headers/API are unchanged.
+
 ## Roadmap
 
 1. Qualify the extraction in uNode on ESP8266 and ESP32-S3 with live network/RDM tests.
-2. Extract sACN into an optional module with explicit per-interface multicast handling.
+2. Qualify sACN extraction with live multicast, input/output, rebind and malformed traffic.
+   Then address its documented E1.31 gaps as separately tested behavior changes.
 3. Add native socket adapters and broader property/fuzz testing as needed.
 4. Integrate S3 USB networking in uNode; preserve the protocol/driver boundary.
 
