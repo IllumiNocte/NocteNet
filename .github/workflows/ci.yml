@@ -10,15 +10,16 @@ concurrency:
   cancel-in-progress: true
 jobs:
   native:
-    name: Portable C++ (${{ matrix.os }})
+    name: Portable C++ (${{ matrix.os }}, sACN ${{ matrix.sacn }})
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
+        sacn: ['ON', 'OFF']
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
-      - run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+      - run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DNOCTENET_SACN=${{ matrix.sacn }}
       - run: cmake --build build --config Debug --parallel
       - run: ctest --test-dir build -C Debug --output-on-failure
   sanitizers:

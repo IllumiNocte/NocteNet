@@ -7,6 +7,8 @@ The initial module is the Art-Net / ArtRdm implementation extracted from uNodeAr
 
 - `NocteNet.h`, `ArtNetNode`, `PollReply`, and `NocteNetTransport.h`: portable C++11.
 - `NocteNetArduino.h`: Arduino UDP / IPAddress / millis / random adaptation only.
+- `NocteNetSacn.h`, `SacnCodec`, `SacnNode`, `SacnSourceSelector`: optional portable
+  sACN zero-start-code subset and separately opt-in legacy source-selection policy.
 - Application: drivers, IP configuration, interface selection, link state, persistence,
   source merging, failsafe, controller ownership, and physical DMX/RDM scheduling.
 - NocteDMX: physical DMX/RDM transport; NocteNet has no dependency on it.
@@ -49,9 +51,10 @@ applications must not interpret a zero return as evidence that nothing was sent.
 Supply the IP, subnet, gateway, MAC, and DHCP flag of the SAME interface used by the
 socket. Wi-Fi, wired Ethernet, and USB Ethernet can each host that socket. A future
 USB adapter should use the platform IP stack, not send raw USB frames from ArtNetNode.
-Configuring multicast membership is deliberately not claimed by the initial UDP
-adapter: sACN extraction will require an explicit multicast join/leave capability
-associated with a selected interface, rather than calling WiFi/lwIP from the core.
+Configuring multicast membership is deliberately not claimed by the generic UDP
+adapter. The optional sACN module uses `SacnTransport` for explicit multicast
+join/leave and send operations associated with a selected interface, rather than
+calling WiFi/lwIP from the core. See [sACN contracts and gaps](sacn.md).
 
 Concurrent Wi-Fi and Ethernet/USB need explicit application policy: bind separate
 sockets/state, reply through the ingress interface, avoid unintended cross-interface
